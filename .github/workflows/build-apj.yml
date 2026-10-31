@@ -1,0 +1,66 @@
+name: Build JARVIS Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'JARVIS-ANDROID-8.2-SOURCE.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Baixar os arquivos do repositório
+        uses: actions/checkout@v6
+
+      - name: Conferir pacote de código-fonte
+        id: source
+        shell: bash
+        run: |
+          if [ -f "JARVIS-ANDROID-8.2-SOURCE.zip" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Não encontrei JARVIS-ANDROID-8.2-SOURCE.zip na raiz do repositório." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Gradle 9.5.0
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.5.0'
+          cache-provider: basic
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar SDK Android 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Extrair código-fonte
+        run: unzip -q JARVIS-ANDROID-8.2-SOURCE.zip -d build-source
+
+      - name: Compilar APK de teste
+        run: gradle --no-daemon --stacktrace -p build-source/JARVIS-ANDROID-8.2 assembleDebug
+
+      - name: Publicar APK para baixar
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Android-8.2-debug-APK
+          path: build-source/JARVIS-ANDROID-8.2/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
